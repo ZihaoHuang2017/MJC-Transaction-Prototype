@@ -2,18 +2,21 @@
  * Please read the specs below for the functionality that the prototype should support.
  */
 
-export enum WIND {
+import {calculateHandValue, MANGAN_BASE_POINT} from "./Points";
+
+export enum Wind {
 	EAST,
 	SOUTH,
 }
 
-export enum actionType {
-	RON, // a rons b
-	TSUMO, // a tsumos
-	CHOMBO, // a chombos
-	TENPAI, // a pays tenpai money to b
-	DEAL_IN_PAO, // a deals in b while being pao
-	SELF_DRAW_PAO, // b self-draw; a was pao
+export enum ActionType {
+	RON,
+	TSUMO,
+	CHOMBO,
+	TENPAI,
+	DEAL_IN_PAO,
+	SELF_DRAW_PAO,
+	NAGASHI_MANGAN,
 }
 
 export interface Person {
@@ -28,69 +31,24 @@ export interface Hand {
 }
 
 export interface Transaction {
-	actionType: actionType;
-	subject: string; // the one who performs the action
-	object?: string; // the one who endures the action
+	actionType: ActionType;
+	pointReceiver: string;
+	pointGiver: string;
 	hand?: Hand;
-	scoreDeltas: number[]; // the overall score changes as a result of this action. Have length 4
-}
-
-const MANGAN_BASE_POINT = 2000;
-
-const manganValue = (points: number) => {
-	let multiplier = 0;
-	switch (true) {
-		case points === 5:
-			multiplier = 1;
-			break;
-		case points <= 7:
-			multiplier = 1.5;
-			break;
-		case points <= 10:
-			multiplier = 2;
-			break;
-		case points <= 12:
-			multiplier = 3;
-			break;
-		// After 13 points is hit, we only see multiples of 13
-		case points === 13:
-			multiplier = 4;
-			break;
-		case points === 26:
-			multiplier = 4 * 2;
-			break;
-		case points === 39:
-			multiplier = 4 * 3;
-			break;
-		case points === 52:
-			multiplier = 4 * 4;
-			break;
-		case points === 65:
-			multiplier = 4 * 5;
-			break;
-	}
-	return MANGAN_BASE_POINT * multiplier;
-};
-
-function calculateHandValue(multiplier: number, fu: number, han: number, honba: number, pointPerHonba: number) {
-	if (han >= 5) {
-		return manganValue(han) * multiplier;
-	}
-	const manganPayout = MANGAN_BASE_POINT * multiplier;
-	const handValue = Math.ceil((fu * Math.pow(2, 2 + han) * multiplier) / 100) * 100;
-	return handValue > manganPayout ? manganPayout + honba * pointPerHonba : handValue + honba * pointPerHonba;
+	amount: number;
 }
 
 export class JapaneseRound {
 	public readonly globalSeating: Person[]; // the dealer is on the round - 1 index
-	public readonly wind: WIND;
+	public readonly wind: Wind;
 	public readonly round: number;
 	public readonly honba: number;
-	public readonly riichiSticks: number;
-	private actions: Transaction[];
+	public riichiSticks: number;
+	public readonly actions: Transaction[];
 	public readonly localSeating: any;
+	private readonly dealerName: string;
 
-	constructor(globalSeating: Person[], wind: WIND, round: number, honba: number, riichiSticks: number) {
+	constructor(globalSeating: Person[], wind: Wind, round: number, honba: number, riichiSticks: number) {
 		/**
 		 * Represents a Round in a Riichi Game.
 		 * @param seating a list representing the *initial* seating and the points.
@@ -110,6 +68,7 @@ export class JapaneseRound {
 		this.riichiSticks = riichiSticks;
 		this.actions = [];
 		this.localSeating = {};
+		this.dealerName = this.globalSeating[this.round - 1].playerName;
 		this.initializeLocalSeating();
 	}
 
@@ -119,9 +78,8 @@ export class JapaneseRound {
 		for (const person of this.globalSeating) {
 			names.push(person.playerName);
 		}
-		const dealer = this.globalSeating[this.round - 1];
 
-		while (names[0] !== dealer.playerName) {
+		while (names[0] !== this.dealerName) {
 			names.push(names.shift());
 		}
 		for (const i in names) {
@@ -139,78 +97,187 @@ export class JapaneseRound {
 	}
 
 	public getDealinMultiplier(person: string) {
-		if (this.getPlayerLocalIndex(person) === 0) {
+		if (person === this.dealerName) {
 			return 6;
 		}
 		return 4;
 	}
 
 	public getTsumoMultiplier(person: string, isDealer: boolean) {
-		if (isDealer || this.getPlayerLocalIndex(person) == 0) {
+		if (isDealer || person === this.dealerName) {
 			return 2;
 		}
 		return 1;
 	}
 
 	public addRon(winner: string, loser: string, hand: Hand) {
-		const scoreDeltas = [0, 0, 0, 0];
-		scoreDeltas[this.getPlayerGlobalIndex(winner)] = calculateHandValue(
-			this.getDealinMultiplier(winner),
-			hand.fu,
-			hand.han,
-			hand.honba,
-			300
-		);
-		scoreDeltas[this.getPlayerGlobalIndex(loser)] = -calculateHandValue(
-			this.getDealinMultiplier(winner),
-			hand.fu,
-			hand.han,
-			hand.honba,
-			300
-		);
-
+		const multiplier = this.getDealinMultiplier(winner);
+		const handValue = calculateHandValue(multiplier, hand, 300);
 		this.actions.push({
-			actionType: actionType.RON,
-			subject: winner,
-			object: loser,
+			actionType: ActionType.RON,
+			pointReceiver: winner,
+			pointGiver: loser,
 			hand: hand,
-			scoreDeltas: scoreDeltas,
+			amount: handValue,
 		});
-		return scoreDeltas;
 	}
 
 	public addTsumo(winner: string, hand: Hand) {
-		const scoreDeltas = [0, 0, 0, 0];
 		const isDealer = this.getPlayerLocalIndex(winner) === 0;
-		let totalScore = 0;
 		for (const playerName in this.localSeating) {
 			if (playerName !== winner) {
-				const value = calculateHandValue(
-					this.getTsumoMultiplier(playerName, isDealer),
-					hand.fu,
-					hand.han,
-					hand.honba,
-					100
-				);
-				totalScore += value;
-				scoreDeltas[this.getPlayerGlobalIndex(playerName)] = -value;
+				const value = calculateHandValue(this.getTsumoMultiplier(playerName, isDealer), hand, 100);
+				this.actions.push({
+					actionType: ActionType.RON,
+					pointReceiver: winner,
+					pointGiver: playerName,
+					hand: hand,
+					amount: value,
+				});
 			}
 		}
-		scoreDeltas[this.getPlayerGlobalIndex(winner)] = totalScore;
-		this.actions.push({
-			actionType: actionType.TSUMO,
-			subject: winner,
-			hand: hand,
-			scoreDeltas: scoreDeltas,
-		});
-		return scoreDeltas;
 	}
 
-	public calculate(): void {
+	public addChombo(chomboPlayer: string) {
+		for (const playerName in this.localSeating) {
+			if (playerName !== chomboPlayer) {
+				this.actions.push({
+					actionType: ActionType.CHOMBO,
+					pointReceiver: playerName,
+					pointGiver: chomboPlayer,
+					amount: 2 * MANGAN_BASE_POINT,
+				});
+			}
+		}
+	}
+
+	public addNagashiMangan(winner: string) {
+		const isDealer = this.getPlayerLocalIndex(winner) === 0;
+		for (const playerName in this.localSeating) {
+			if (playerName !== winner) {
+				const value = MANGAN_BASE_POINT * this.getTsumoMultiplier(playerName, isDealer);
+				this.actions.push({
+					actionType: ActionType.NAGASHI_MANGAN,
+					pointReceiver: winner,
+					pointGiver: playerName,
+					amount: value,
+				});
+			}
+		}
+	}
+
+	public addPaoDealIn(winner: string, dealInPerson: string, paoPerson: string, hand: Hand) {
+		const multiplier = this.getDealinMultiplier(winner);
+		this.actions.push({
+			actionType: ActionType.NAGASHI_MANGAN,
+			pointReceiver: winner,
+			pointGiver: dealInPerson,
+			amount: calculateHandValue(multiplier / 2, hand, 300),
+		});
+		this.actions.push({
+			actionType: ActionType.NAGASHI_MANGAN,
+			pointReceiver: winner,
+			pointGiver: paoPerson,
+			amount: calculateHandValue(multiplier / 2, hand, 0),
+		});
+	}
+
+	public addPaoTsumo(winner: string, paoPerson: string, hand: Hand) {
+		const multiplier = this.getDealinMultiplier(winner);
+		const value = calculateHandValue(multiplier, hand, 300);
+		this.actions.push({
+			actionType: ActionType.SELF_DRAW_PAO,
+			pointReceiver: winner,
+			pointGiver: paoPerson,
+			hand: hand,
+			amount: value,
+		});
+	}
+	public addRiichi(riichiPlayer: string) {
+		this.riichiSticks += 1;
+		this.globalSeating[this.getPlayerGlobalIndex(riichiPlayer)].score -= 1000;
+	}
+	public getScoreDeltas(): number[] {
 		/**
 		 * Returns the situation of the next round in accordance to the actions performed.
-		 * Should go through
+		 * Should go through the list of actions and aggregate a final score delta.
 		 */
-		return;
+		let finalRoundChange = [0, 0, 0, 0];
+		for (const transaction of this.actions) {
+			finalRoundChange[this.getPlayerGlobalIndex(transaction.pointReceiver)] += transaction.amount;
+			finalRoundChange[this.getPlayerGlobalIndex(transaction.pointGiver)] -= transaction.amount;
+		}
+		return finalRoundChange;
+	}
+
+	private getClosestWinner(loserLocalPos: number, winners: Set<string>) {
+		let [closestWinner] = winners;
+		for (const winnerName of winners) {
+			if (
+				(this.getPlayerLocalIndex(winnerName) - loserLocalPos) % 4 <
+				(this.getPlayerLocalIndex(closestWinner) - loserLocalPos) % 4
+			) {
+				closestWinner = winnerName;
+			}
+		}
+		return closestWinner;
+	}
+
+	public getNextRound(): JapaneseRound {
+		for (const i in this.getScoreDeltas()) {
+			this.globalSeating[i].score += this.getScoreDeltas()[i];
+		}
+		const {winners, losers} = this.getProminentPlayers();
+		const renchan = this.modifyRenchan(winners, losers);
+		if (renchan) {
+			// TODO: Logic NOT correct
+			return new JapaneseRound(this.globalSeating, this.wind, this.round, this.honba + 1, this.riichiSticks);
+		} else {
+			if (this.wind === Wind.EAST && this.round === 4) {
+				return new JapaneseRound(this.globalSeating, Wind.SOUTH, 1, 0, this.riichiSticks);
+			} else {
+				return new JapaneseRound(this.globalSeating, this.wind, this.round + 1, 0, this.riichiSticks);
+			}
+		}
+	}
+
+	private modifyRenchan(winners: Set<string>, losers: Set<string>) {
+		if (winners.size === 1) {
+			const [winner] = winners;
+			this.globalSeating[this.getPlayerGlobalIndex(winner)].score += this.riichiSticks * 1000;
+			this.riichiSticks = 0;
+			if (winner === this.dealerName) {
+				return true;
+			}
+		} else if (losers.size === 1) {
+			const [loser] = losers;
+			const loserLocalPos = this.getPlayerLocalIndex(loser);
+			const closestWinner = this.getClosestWinner(loserLocalPos, winners);
+			this.globalSeating[this.getPlayerGlobalIndex(closestWinner)].score += this.riichiSticks * 1000;
+			this.riichiSticks = 0;
+			if (winners.has(this.dealerName)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private getProminentPlayers() {
+		const winners = new Set<string>();
+		const losers = new Set<string>();
+		for (const transaction of this.actions) {
+			if (
+				[ActionType.RON, ActionType.TSUMO, ActionType.SELF_DRAW_PAO, ActionType.DEAL_IN_PAO].includes(
+					transaction.actionType
+				)
+			) {
+				winners.add(transaction.pointReceiver);
+				losers.add(transaction.pointGiver);
+			}
+		}
+		if (winners.size > 1 && losers.size > 1) {
+			throw new Error("Input mismatch: must have only one winner or only one loser");
+		}
+		return {winners, losers};
 	}
 }
