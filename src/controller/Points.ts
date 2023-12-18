@@ -1,4 +1,4 @@
-import {Hand} from "./MahjongRound";
+import {Hand} from "./Types";
 
 export const MANGAN_BASE_POINT = 2000;
 const manganValue = (points: number) => {
@@ -36,14 +36,13 @@ const manganValue = (points: number) => {
 	return MANGAN_BASE_POINT * multiplier;
 };
 
-export function calculateHandValue(multiplier: number, hand: Hand, pointPerHonba: number) {
+export function calculateHandValue(multiplier: number, hand: Hand) {
 	const han = hand.han;
 	const fu = hand.fu;
-	const honba = hand.honba;
 	if (han >= 5) {
 		return manganValue(han) * multiplier;
 	}
 	const manganPayout = MANGAN_BASE_POINT * multiplier;
 	const handValue = Math.ceil((fu * Math.pow(2, 2 + han) * multiplier) / 100) * 100;
-	return handValue > manganPayout ? manganPayout + honba * pointPerHonba : handValue + honba * pointPerHonba;
+	return handValue > manganPayout ? manganPayout : handValue;
 }
