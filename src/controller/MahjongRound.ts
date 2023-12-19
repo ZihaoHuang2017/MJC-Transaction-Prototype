@@ -12,6 +12,7 @@ import {
 	Transaction,
 	Wind,
 } from "./Types";
+import {transformTransactions} from "./HonbaProcessing";
 
 export class JapaneseRound {
 	public readonly roundWind: Wind;
@@ -62,11 +63,13 @@ export class JapaneseRound {
 		const handValue = calculateHandValue(multiplier, hand);
 		scoreDeltas[winnerIndex] = handValue;
 		scoreDeltas[loserIndex] = -handValue;
-		this.transactions.push({
+		const result: Transaction = {
 			actionType: ActionType.RON,
 			hand: hand,
 			scoreDeltas: scoreDeltas,
-		});
+		};
+		this.transactions.push(result);
+		return result;
 	}
 
 	public addTsumo(winnerIndex: number, hand: Hand) {
@@ -81,12 +84,13 @@ export class JapaneseRound {
 			}
 		}
 		scoreDeltas[winnerIndex] = totalScore;
-		this.transactions.push({
+		const result: Transaction = {
 			actionType: ActionType.TSUMO,
 			hand: hand,
 			scoreDeltas: scoreDeltas,
-		});
-		return scoreDeltas;
+		};
+		this.transactions.push(result);
+		return result;
 	}
 
 	public addChombo(chomboPlayerIndex: number) {
@@ -128,6 +132,7 @@ export class JapaneseRound {
 		this.transactions.push({
 			actionType: ActionType.NAGASHI_MANGAN,
 			hand: hand,
+			paoTarget: paoPersonIndex,
 			scoreDeltas: scoreDeltas,
 		});
 	}
@@ -141,6 +146,7 @@ export class JapaneseRound {
 		this.transactions.push({
 			actionType: ActionType.NAGASHI_MANGAN,
 			hand: hand,
+			paoTarget: paoPersonIndex,
 			scoreDeltas: scoreDeltas,
 		});
 	}
@@ -168,7 +174,7 @@ export class JapaneseRound {
 			startingRiichiSticks: this.riichiSticks,
 			riichis: this.riichis,
 			endingRiichiSticks: this.getFinalRiichiSticks(),
-			transactions: this.transactions,
+			transactions: transformTransactions(this.transactions, this.honba),
 		};
 	}
 }
@@ -186,73 +192,4 @@ function reduceScoreDeltas(transactions: Transaction[]): number[] {
 		(result, current) => addScoreDeltas(result, current.scoreDeltas),
 		[0, 0, 0, 0]
 	);
-}
-
-
-function getClosestWinner(loserLocalPos: number, winners: Set<number>) {
-	let [closestWinnerIndex] = winners;
-	for (const winnerIndex of winners) {
-		if ((winnerIndex - loserLocalPos) % 4 < (closestWinnerIndex - loserLocalPos) % 4) {
-			closestWinnerIndex = winnerIndex;
-		}
-	}
-	return closestWinnerIndex;
-}
-
-function dealershipRetains(transactions: Transaction[], dealerIndex: number) {
-	for (const transaction of transactions) {
-		if (
-			[ActionType.RON, ActionType.TSUMO, ActionType.SELF_DRAW_PAO, ActionType.DEAL_IN_PAO].includes(
-				transaction.actionType
-			) &&
-			transaction.scoreDeltas[dealerIndex] > 0
-		) {
-			return true;
-		}
-		if (transaction.actionType === ActionType.CHOMBO) {
-			return true;
-		}
-		if (transaction.actionType === ActionType.NAGASHI_MANGAN) {
-			return true;
-		}
-	}
-	return false;
-}
-
-function getNewHonbaCount(dealerIndex: number, transactions: Transaction[], honba: number) {
-	for (const transaction of transactions) {
-		if (
-			[ActionType.RON, ActionType.TSUMO, ActionType.SELF_DRAW_PAO, ActionType.DEAL_IN_PAO].includes(
-				transaction.actionType
-			) &&
-			transaction.scoreDeltas[dealerIndex] > 0
-		) {
-			return honba + 1;
-		}
-		if (transaction.actionType === ActionType.CHOMBO) {
-			return honba;
-		}
-	}
-	return 0;
-}
-
-function getProminentPlayers(transactions: Transaction[]) {
-	const winners = new Set<string>();
-	const losers = new Set<string>();
-	for (const transaction of transactions) {
-		if (
-			[ActionType.RON, ActionType.TSUMO, ActionType.SELF_DRAW_PAO, ActionType.DEAL_IN_PAO].includes(
-				transaction.actionType
-			)
-		) {
-			for (const index in transaction.scoreDeltas) {
-				if (transaction.scoreDeltas[index] < 0) {
-					losers.add(index);
-				} else if (transaction.scoreDeltas[index] > 0) {
-					winners.add(index);
-				}
-			}
-		}
-	}
-	return {winners, losers};
 }

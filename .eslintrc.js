@@ -77,7 +77,7 @@ module.exports = {
 		"indent": ["error", "tab", {"ignoreComments": true, "SwitchCase": 1}],
 		"max-len": ["error", {"code": 120, "ignoreComments": true}],
 		"max-lines-per-function": ["error", {"max": 50, "skipComments": true}],
-		"max-lines": ["error", 300],
+		"max-lines": ["error", 500],
 		"new-parens": "error",
 		"no-await-in-loop": "error",
 		"no-bitwise": "error",

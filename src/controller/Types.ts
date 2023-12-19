@@ -22,6 +22,7 @@ export interface Hand {
 export interface Transaction {
 	actionType: ActionType;
 	hand?: Hand;
+	paoTarget?: number;
 	scoreDeltas: number[];
 }
 
