@@ -1,4 +1,4 @@
-import {ActionType, Transaction} from "./Types";
+import {ActionType, getEmptyScoreDelta, NUM_PLAYERS, Transaction} from "./Types";
 
 function containingAny(transactions: Transaction[], actionType: ActionType): Transaction | null {
 	for (const transaction of transactions) {
@@ -73,7 +73,7 @@ function handleDealIn(newTransaction: Transaction, honbaCount: number) {
 export function addHonba(transaction: Transaction, honbaCount: number) {
 	const newTransaction: Transaction = {
 		actionType: transaction.actionType,
-		scoreDeltas: [0, 0, 0, 0],
+		scoreDeltas: getEmptyScoreDelta(),
 	};
 	if (transaction.hand) {
 		newTransaction.hand = transaction.hand;
@@ -118,7 +118,7 @@ export function addHonba(transaction: Transaction, honbaCount: number) {
 function getClosestWinner(loserLocalPos: number, winners: Set<number>) {
 	let [closestWinnerIndex] = winners;
 	for (const winnerIndex of winners) {
-		if ((winnerIndex - loserLocalPos) % 4 < (closestWinnerIndex - loserLocalPos) % 4) {
+		if ((winnerIndex - loserLocalPos) % NUM_PLAYERS < (closestWinnerIndex - loserLocalPos) % NUM_PLAYERS) {
 			closestWinnerIndex = winnerIndex;
 		}
 	}

@@ -8,6 +8,7 @@ import {
 	BackendToFrontendRound,
 	FrontendToBackendRound,
 	getNextWind,
+	getEmptyScoreDelta,
 	Hand,
 	NUM_PLAYERS,
 	Transaction,
@@ -59,7 +60,7 @@ export class JapaneseRound {
 	}
 
 	public addRon(winnerIndex: number, loserIndex: number, hand: Hand) {
-		const scoreDeltas = [0, 0, 0, 0];
+		const scoreDeltas = getEmptyScoreDelta();
 		const multiplier = this.getDealinMultiplier(winnerIndex);
 		const handValue = calculateHandValue(multiplier, hand);
 		scoreDeltas[winnerIndex] = handValue;
@@ -74,7 +75,7 @@ export class JapaneseRound {
 	}
 
 	public addTsumo(winnerIndex: number, hand: Hand) {
-		const scoreDeltas = [0, 0, 0, 0];
+		const scoreDeltas = getEmptyScoreDelta();
 		const isDealer = winnerIndex === this.dealerIndex;
 		let totalScore = 0;
 		for (let i = 0; i < NUM_PLAYERS; i++) {
@@ -95,7 +96,7 @@ export class JapaneseRound {
 	}
 
 	public addChombo(chomboPlayerIndex: number) {
-		const scoreDeltas = [0, 0, 0, 0];
+		const scoreDeltas = getEmptyScoreDelta();
 		for (let i = 0; i < NUM_PLAYERS; i++) {
 			if (i !== chomboPlayerIndex) {
 				scoreDeltas[i] = 2 * MANGAN_BASE_POINT;
@@ -109,7 +110,7 @@ export class JapaneseRound {
 	}
 
 	public addNagashiMangan(winnerIndex: number) {
-		const scoreDeltas = [0, 0, 0, 0];
+		const scoreDeltas = getEmptyScoreDelta();
 		const isDealer = winnerIndex === this.dealerIndex;
 		for (let i = 0; i < NUM_PLAYERS; i++) {
 			if (i !== winnerIndex) {
@@ -125,7 +126,7 @@ export class JapaneseRound {
 	}
 
 	public addPaoDealIn(winnerIndex: number, dealInPersonIndex: number, paoPersonIndex: number, hand: Hand) {
-		const scoreDeltas = [0, 0, 0, 0];
+		const scoreDeltas = getEmptyScoreDelta();
 		const multiplier = this.getDealinMultiplier(winnerIndex);
 		scoreDeltas[dealInPersonIndex] = -calculateHandValue(multiplier / 2, hand);
 		scoreDeltas[paoPersonIndex] = -calculateHandValue(multiplier / 2, hand);
@@ -139,7 +140,7 @@ export class JapaneseRound {
 	}
 
 	public addPaoTsumo(winnerIndex: number, paoPersonIndex: number, hand: Hand) {
-		const scoreDeltas = [0, 0, 0, 0];
+		const scoreDeltas = getEmptyScoreDelta();
 		const multiplier = this.getDealinMultiplier(winnerIndex);
 		const value = calculateHandValue(multiplier, hand);
 		scoreDeltas[paoPersonIndex] = -value;
@@ -156,7 +157,7 @@ export class JapaneseRound {
 		if (tenpaiIndexes.length === 0) {
 			return;
 		}
-		const scoreDeltas = [0, 0, 0, 0];
+		const scoreDeltas = getEmptyScoreDelta();
 		for (const index in scoreDeltas) {
 			if (tenpaiIndexes.includes(+index)) {
 				scoreDeltas[index] = 3000 / tenpaiIndexes.length;
@@ -200,7 +201,7 @@ export class JapaneseRound {
 }
 
 function addScoreDeltas(scoreDelta1: number[], scoreDelta2: number[]): number[] {
-	const finalScoreDelta = [0, 0, 0, 0];
+	const finalScoreDelta = getEmptyScoreDelta();
 	for (const i in finalScoreDelta) {
 		finalScoreDelta[i] += scoreDelta1[i] + scoreDelta2[i];
 	}
@@ -210,12 +211,12 @@ function addScoreDeltas(scoreDelta1: number[], scoreDelta2: number[]): number[] 
 function reduceScoreDeltas(transactions: Transaction[]): number[] {
 	return transactions.reduce<number[]>(
 		(result, current) => addScoreDeltas(result, current.scoreDeltas),
-		[0, 0, 0, 0]
+		getEmptyScoreDelta()
 	);
 }
 
 export function generateOverallScoreDelta(concludedGame: FrontendToBackendRound) {
-	const riichiDeltas = [0, 0, 0, 0];
+	const riichiDeltas = getEmptyScoreDelta();
 	for (const id of concludedGame.riichis) {
 		riichiDeltas[id] -= 1000;
 	}
@@ -242,9 +243,11 @@ export function generateNextRound(concludedGame: FrontendToBackendRound): Backen
 	}
 	return {
 		honba: newHonbaCount,
-		roundNumber: concludedGame.roundNumber === 4 ? 1 : concludedGame.roundNumber + 1,
+		roundNumber: concludedGame.roundNumber === NUM_PLAYERS ? 1 : concludedGame.roundNumber + 1,
 		roundWind:
-			concludedGame.roundNumber === 4 ? getNextWind(concludedGame.roundWind.valueOf()) : concludedGame.roundWind,
+			concludedGame.roundNumber === NUM_PLAYERS
+				? getNextWind(concludedGame.roundWind.valueOf())
+				: concludedGame.roundWind,
 		startingRiichiSticks: concludedGame.endingRiichiSticks,
 	};
 }

@@ -5,9 +5,13 @@ export enum Wind {
 	NORTH,
 }
 
+export function getEmptyScoreDelta(): number[] {
+	return Array(NUM_PLAYERS).fill(0);
+}
+
 const windOrder = [Wind.EAST, Wind.SOUTH, Wind.WEST, Wind.NORTH];
 export const getNextWind = (index: number): Wind => {
-	return windOrder[(index % 4) + 1];
+	return windOrder[(index % NUM_PLAYERS) + 1];
 };
 
 export const NUM_PLAYERS = 4;
