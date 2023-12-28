@@ -1,7 +1,14 @@
 export enum Wind {
 	EAST,
 	SOUTH,
+	WEST,
+	NORTH,
 }
+
+const windOrder = [Wind.EAST, Wind.SOUTH, Wind.WEST, Wind.NORTH];
+export const getNextWind = (index: number): Wind => {
+	return windOrder[(index % 4) + 1];
+};
 
 export const NUM_PLAYERS = 4;
 
@@ -37,7 +44,7 @@ export interface FrontendToBackendRound {
 	 * @param transactions A list of transactions that happened during the completed round.
 	 */
 	roundWind: Wind;
-	roundNumber: 1 | 2 | 3 | 4;
+	roundNumber: number;
 	honba: number;
 	startingRiichiSticks: number;
 	riichis: number[];
@@ -47,7 +54,7 @@ export interface FrontendToBackendRound {
 
 export interface BackendToFrontendRound {
 	roundWind: Wind;
-	roundNumber: 1 | 2 | 3 | 4;
+	roundNumber: number;
 	honba: number;
 	startingRiichiSticks: number;
 }

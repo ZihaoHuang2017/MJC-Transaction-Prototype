@@ -7,16 +7,17 @@ import {
 	ActionType,
 	BackendToFrontendRound,
 	FrontendToBackendRound,
+	getNextWind,
 	Hand,
 	NUM_PLAYERS,
 	Transaction,
 	Wind,
 } from "./Types";
-import {transformTransactions} from "./HonbaProcessing";
+import {dealershipRetains, findHeadbumpWinner, getNewHonbaCount, transformTransactions} from "./HonbaProcessing";
 
 export class JapaneseRound {
 	public readonly roundWind: Wind;
-	public readonly roundNumber: 1 | 2 | 3 | 4;
+	public readonly roundNumber: number;
 	public readonly honba: number;
 	public readonly riichiSticks: number;
 	public riichis: number[];
@@ -128,7 +129,7 @@ export class JapaneseRound {
 		const multiplier = this.getDealinMultiplier(winnerIndex);
 		scoreDeltas[dealInPersonIndex] = -calculateHandValue(multiplier / 2, hand);
 		scoreDeltas[paoPersonIndex] = -calculateHandValue(multiplier / 2, hand);
-		scoreDeltas[winnerIndex] += calculateHandValue(multiplier, hand);
+		scoreDeltas[winnerIndex] = calculateHandValue(multiplier, hand);
 		this.transactions.push({
 			actionType: ActionType.NAGASHI_MANGAN,
 			hand: hand,
@@ -142,7 +143,7 @@ export class JapaneseRound {
 		const multiplier = this.getDealinMultiplier(winnerIndex);
 		const value = calculateHandValue(multiplier, hand);
 		scoreDeltas[paoPersonIndex] = -value;
-		scoreDeltas[winnerIndex] += value;
+		scoreDeltas[winnerIndex] = value;
 		this.transactions.push({
 			actionType: ActionType.NAGASHI_MANGAN,
 			hand: hand,
@@ -150,6 +151,25 @@ export class JapaneseRound {
 			scoreDeltas: scoreDeltas,
 		});
 	}
+
+	public setTenpais(tenpaiIndexes: number[]) {
+		if (tenpaiIndexes.length === 0) {
+			return;
+		}
+		const scoreDeltas = [0, 0, 0, 0];
+		for (const index in scoreDeltas) {
+			if (tenpaiIndexes.includes(+index)) {
+				scoreDeltas[index] = 3000 / tenpaiIndexes.length;
+			} else {
+				scoreDeltas[index] = -3000 / (4 - tenpaiIndexes.length);
+			}
+		}
+		this.transactions.push({
+			actionType: ActionType.TENPAI,
+			scoreDeltas: scoreDeltas,
+		});
+	}
+
 	public addRiichi(riichiPlayerIndex: number) {
 		this.riichis.push(riichiPlayerIndex);
 	}
@@ -192,4 +212,39 @@ function reduceScoreDeltas(transactions: Transaction[]): number[] {
 		(result, current) => addScoreDeltas(result, current.scoreDeltas),
 		[0, 0, 0, 0]
 	);
+}
+
+export function generateOverallScoreDelta(concludedGame: FrontendToBackendRound) {
+	const riichiDeltas = [0, 0, 0, 0];
+	for (const id of concludedGame.riichis) {
+		riichiDeltas[id] -= 1000;
+	}
+	const headbumpWinner = findHeadbumpWinner(concludedGame.transactions);
+	if (concludedGame.endingRiichiSticks === 0) {
+		riichiDeltas[headbumpWinner] += (concludedGame.startingRiichiSticks + concludedGame.riichis.length) * 1000;
+	}
+	return addScoreDeltas(reduceScoreDeltas(concludedGame.transactions), riichiDeltas);
+}
+
+export function generateNextRound(concludedGame: FrontendToBackendRound): BackendToFrontendRound {
+	const newHonbaCount = getNewHonbaCount(
+		concludedGame.roundNumber - 1,
+		concludedGame.transactions,
+		concludedGame.honba
+	);
+	if (dealershipRetains(concludedGame.transactions, concludedGame.roundNumber - 1)) {
+		return {
+			honba: newHonbaCount,
+			roundNumber: concludedGame.roundNumber,
+			roundWind: concludedGame.roundWind,
+			startingRiichiSticks: concludedGame.endingRiichiSticks,
+		};
+	}
+	return {
+		honba: newHonbaCount,
+		roundNumber: concludedGame.roundNumber === 4 ? 1 : concludedGame.roundNumber + 1,
+		roundWind:
+			concludedGame.roundNumber === 4 ? getNextWind(concludedGame.roundWind.valueOf()) : concludedGame.roundWind,
+		startingRiichiSticks: concludedGame.endingRiichiSticks,
+	};
 }

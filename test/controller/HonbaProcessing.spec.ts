@@ -15,7 +15,6 @@ describe("Should process honba well", () => {
 			hand: {fu: 30, han: 1},
 			scoreDeltas: [-1900, 0, 1900, 0],
 		});
-		expect(result).equal(ronTransaction); // the obj itself has been changed
 	});
 	it("should handle tsumo", () => {
 		const ronTransaction: Transaction = {

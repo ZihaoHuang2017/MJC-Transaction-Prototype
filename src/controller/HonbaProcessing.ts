@@ -11,8 +11,33 @@ function containingAny(transactions: Transaction[], actionType: ActionType): Tra
 
 export function transformTransactions(transactions: Transaction[], honba: number) {
 	const transaction: Transaction = determineHonbaTransaction(transactions);
-	addHonba(transaction, honba);
+	const newTransaction: Transaction = addHonba(transaction, honba);
+	for (const index in transactions) {
+		if (transactions[index] === transaction) {
+			transactions[index] = newTransaction;
+		}
+	}
 	return transactions;
+}
+
+export function findHeadbumpWinner(transactions: Transaction[]) {
+	const winners = new Set<number>();
+	const losers = new Set<number>();
+	for (const transaction of transactions) {
+		for (let index = 0; index < transaction.scoreDeltas.length; index++) {
+			if (transaction.paoTarget !== undefined && transaction.paoTarget === index) {
+				// is pao target
+				continue;
+			}
+			if (transaction.scoreDeltas[index] < 0) {
+				losers.add(index);
+			} else if (transaction.scoreDeltas[index] > 0) {
+				winners.add(index);
+			}
+		}
+	}
+	const [loser] = losers; // should only have one real loser
+	return getClosestWinner(loser, winners);
 }
 
 function determineHonbaTransaction(transactions: Transaction[]) {
@@ -23,57 +48,71 @@ function determineHonbaTransaction(transactions: Transaction[]) {
 	if (potentialTsumo) {
 		return potentialTsumo;
 	}
-	const {winners, losers} = getProminentPlayers(transactions);
-	const [loser] = losers; // should only have one real loser
-	const closestWinnerIndex = getClosestWinner(loser, winners);
+	const headbumpWinner = findHeadbumpWinner(transactions);
 	for (const transaction of transactions) {
-		if (transaction.scoreDeltas[closestWinnerIndex] > 0) {
+		if (transaction.scoreDeltas[headbumpWinner] > 0) {
 			return transaction;
 		}
 	}
 	throw new Error("Should not reach here." + transactions);
 }
 
+function handleDealIn(newTransaction: Transaction, honbaCount: number) {
+	for (const index in newTransaction.scoreDeltas) {
+		if (newTransaction.paoTarget !== undefined && newTransaction.paoTarget === +index) {
+			continue;
+		}
+		if (newTransaction.scoreDeltas[index] > 0) {
+			newTransaction.scoreDeltas[index] += 300 * honbaCount;
+		} else if (newTransaction.scoreDeltas[index] < 0) {
+			newTransaction.scoreDeltas[index] -= 300 * honbaCount;
+		}
+	}
+}
+
 export function addHonba(transaction: Transaction, honbaCount: number) {
-	// MODIFIES: transaction; perhaps it is better to make it functional, but I don't want to spend in the effort
-	switch (transaction.actionType) {
+	const newTransaction: Transaction = {
+		actionType: transaction.actionType,
+		scoreDeltas: [0, 0, 0, 0],
+	};
+	if (transaction.hand) {
+		newTransaction.hand = transaction.hand;
+	}
+	if (transaction.paoTarget) {
+		newTransaction.paoTarget = transaction.paoTarget;
+	}
+	for (const index in transaction.scoreDeltas) {
+		newTransaction.scoreDeltas[index] = transaction.scoreDeltas[index];
+	}
+	switch (newTransaction.actionType) {
 		case ActionType.CHOMBO:
 		case ActionType.NAGASHI_MANGAN:
 		case ActionType.TENPAI:
 			break;
 		case ActionType.TSUMO:
-			for (const index in transaction.scoreDeltas) {
-				if (transaction.scoreDeltas[index] > 0) {
-					transaction.scoreDeltas[index] += 300 * honbaCount;
+			for (const index in newTransaction.scoreDeltas) {
+				if (newTransaction.scoreDeltas[index] > 0) {
+					newTransaction.scoreDeltas[index] += 300 * honbaCount;
 				} else {
-					transaction.scoreDeltas[index] -= 100 * honbaCount;
+					newTransaction.scoreDeltas[index] -= 100 * honbaCount;
 				}
 			}
 			break;
 		case ActionType.RON:
 		case ActionType.DEAL_IN_PAO:
-			for (const index in transaction.scoreDeltas) {
-				if (transaction.paoTarget !== undefined && transaction.paoTarget === +index) {
-					continue;
-				}
-				if (transaction.scoreDeltas[index] > 0) {
-					transaction.scoreDeltas[index] += 300 * honbaCount;
-				} else if (transaction.scoreDeltas[index] < 0){
-					transaction.scoreDeltas[index] -= 300 * honbaCount;
-				}
-			}
+			handleDealIn(newTransaction, honbaCount);
 			break;
 		case ActionType.SELF_DRAW_PAO:
-			for (const index in transaction.scoreDeltas) {
-				if (transaction.scoreDeltas[index] > 0) {
-					transaction.scoreDeltas[index] += 300 * honbaCount;
-				} else if (transaction.scoreDeltas[index] < 0) {
-					transaction.scoreDeltas[index] -= 300 * honbaCount;
+			for (const index in newTransaction.scoreDeltas) {
+				if (newTransaction.scoreDeltas[index] > 0) {
+					newTransaction.scoreDeltas[index] += 300 * honbaCount;
+				} else if (newTransaction.scoreDeltas[index] < 0) {
+					newTransaction.scoreDeltas[index] -= 300 * honbaCount;
 				}
 			}
 			break;
 	}
-	return transaction;
+	return newTransaction;
 }
 
 function getClosestWinner(loserLocalPos: number, winners: Set<number>) {
@@ -86,7 +125,7 @@ function getClosestWinner(loserLocalPos: number, winners: Set<number>) {
 	return closestWinnerIndex;
 }
 
-function dealershipRetains(transactions: Transaction[], dealerIndex: number) {
+export function dealershipRetains(transactions: Transaction[], dealerIndex: number) {
 	for (const transaction of transactions) {
 		if (
 			[ActionType.RON, ActionType.TSUMO, ActionType.SELF_DRAW_PAO, ActionType.DEAL_IN_PAO].includes(
@@ -106,7 +145,7 @@ function dealershipRetains(transactions: Transaction[], dealerIndex: number) {
 	return false;
 }
 
-function getNewHonbaCount(dealerIndex: number, transactions: Transaction[], honba: number) {
+export function getNewHonbaCount(dealerIndex: number, transactions: Transaction[], honba: number) {
 	for (const transaction of transactions) {
 		if (
 			[ActionType.RON, ActionType.TSUMO, ActionType.SELF_DRAW_PAO, ActionType.DEAL_IN_PAO].includes(
@@ -121,23 +160,4 @@ function getNewHonbaCount(dealerIndex: number, transactions: Transaction[], honb
 		}
 	}
 	return 0;
-}
-
-function getProminentPlayers(transactions: Transaction[]) {
-	const winners = new Set<number>();
-	const losers = new Set<number>();
-	for (const transaction of transactions) {
-		for (let index = 0; index < transaction.scoreDeltas.length; index++) {
-			if (transaction.paoTarget !== undefined && transaction.paoTarget === index) {
-				// is pao target
-				continue;
-			}
-			if (transaction.scoreDeltas[index] < 0) {
-				losers.add(index);
-			} else if (transaction.scoreDeltas[index] > 0) {
-				winners.add(index);
-			}
-		}
-	}
-	return {winners, losers};
 }
