@@ -1,4 +1,5 @@
 import {ActionType, getEmptyScoreDelta, NUM_PLAYERS, Transaction} from "./Types";
+import {range} from "./Range";
 
 function containingAny(transactions: Transaction[], actionType: ActionType): Transaction | null {
 	for (const transaction of transactions) {
@@ -12,7 +13,7 @@ function containingAny(transactions: Transaction[], actionType: ActionType): Tra
 export function transformTransactions(transactions: Transaction[], honba: number) {
 	const transaction: Transaction = determineHonbaTransaction(transactions);
 	const newTransaction: Transaction = addHonba(transaction, honba);
-	for (const index in transactions) {
+	for (const index of range(NUM_PLAYERS)) {
 		if (transactions[index] === transaction) {
 			transactions[index] = newTransaction;
 		}
@@ -58,8 +59,8 @@ function determineHonbaTransaction(transactions: Transaction[]) {
 }
 
 function handleDealIn(newTransaction: Transaction, honbaCount: number) {
-	for (const index in newTransaction.scoreDeltas) {
-		if (newTransaction.paoTarget !== undefined && newTransaction.paoTarget === +index) {
+	for (const index of range(NUM_PLAYERS)) {
+		if (newTransaction.paoTarget !== undefined && newTransaction.paoTarget === index) {
 			continue;
 		}
 		if (newTransaction.scoreDeltas[index] > 0) {
@@ -81,7 +82,7 @@ export function addHonba(transaction: Transaction, honbaCount: number) {
 	if (transaction.paoTarget) {
 		newTransaction.paoTarget = transaction.paoTarget;
 	}
-	for (const index in transaction.scoreDeltas) {
+	for (const index of range(NUM_PLAYERS)) {
 		newTransaction.scoreDeltas[index] = transaction.scoreDeltas[index];
 	}
 	switch (newTransaction.actionType) {
@@ -90,7 +91,7 @@ export function addHonba(transaction: Transaction, honbaCount: number) {
 		case ActionType.TENPAI:
 			break;
 		case ActionType.TSUMO:
-			for (const index in newTransaction.scoreDeltas) {
+			for (const index of range(NUM_PLAYERS)) {
 				if (newTransaction.scoreDeltas[index] > 0) {
 					newTransaction.scoreDeltas[index] += 300 * honbaCount;
 				} else {
@@ -103,7 +104,7 @@ export function addHonba(transaction: Transaction, honbaCount: number) {
 			handleDealIn(newTransaction, honbaCount);
 			break;
 		case ActionType.SELF_DRAW_PAO:
-			for (const index in newTransaction.scoreDeltas) {
+			for (const index of range(NUM_PLAYERS)) {
 				if (newTransaction.scoreDeltas[index] > 0) {
 					newTransaction.scoreDeltas[index] += 300 * honbaCount;
 				} else if (newTransaction.scoreDeltas[index] < 0) {

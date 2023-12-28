@@ -15,6 +15,7 @@ import {
 	Wind,
 } from "./Types";
 import {dealershipRetains, findHeadbumpWinner, getNewHonbaCount, transformTransactions} from "./HonbaProcessing";
+import {range} from "./Range";
 
 export class JapaneseRound {
 	public readonly roundWind: Wind;
@@ -158,8 +159,8 @@ export class JapaneseRound {
 			return;
 		}
 		const scoreDeltas = getEmptyScoreDelta();
-		for (const index in scoreDeltas) {
-			if (tenpaiIndexes.includes(+index)) {
+		for (const index of range(NUM_PLAYERS)) {
+			if (tenpaiIndexes.includes(index)) {
 				scoreDeltas[index] = 3000 / tenpaiIndexes.length;
 			} else {
 				scoreDeltas[index] = -3000 / (4 - tenpaiIndexes.length);
@@ -202,8 +203,8 @@ export class JapaneseRound {
 
 function addScoreDeltas(scoreDelta1: number[], scoreDelta2: number[]): number[] {
 	const finalScoreDelta = getEmptyScoreDelta();
-	for (const i in finalScoreDelta) {
-		finalScoreDelta[i] += scoreDelta1[i] + scoreDelta2[i];
+	for (const index of range(NUM_PLAYERS)) {
+		finalScoreDelta[index] += scoreDelta1[index] + scoreDelta2[index];
 	}
 	return finalScoreDelta;
 }
